@@ -371,6 +371,7 @@ public:
 	static int32 duel_reset_flag_effect(lua_State *L);
 	static int32 duel_set_flag_effect_label(lua_State *L);
 	static int32 duel_get_flag_effect_label(lua_State *L);
+	static int32 duel_exile(lua_State *L);
 	static int32 duel_destroy(lua_State *L);
 	static int32 duel_remove(lua_State *L);
 	static int32 duel_sendto_grave(lua_State *L);

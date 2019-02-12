@@ -379,6 +379,7 @@ static const struct luaL_Reg duellib[] = {
 	{ "ResetFlagEffect", scriptlib::duel_reset_flag_effect },
 	{ "SetFlagEffectLabel", scriptlib::duel_set_flag_effect_label },
 	{ "GetFlagEffectLabel", scriptlib::duel_get_flag_effect_label },
+	{ "Exile", scriptlib::duel_exile },
 	{ "Destroy", scriptlib::duel_destroy },
 	{ "Remove", scriptlib::duel_remove },
 	{ "SendtoGrave", scriptlib::duel_sendto_grave },
