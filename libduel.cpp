@@ -195,8 +195,8 @@ int32 scriptlib::duel_send_to(lua_State *L) {
 	int32 location = lua_tointeger(L, 3);
 	int32 sequence = lua_tointeger(L, 4);
 	int32 position = lua_tointeger(L, 5);
-	duel* pduel = interpreter::get_duel_info(L);
-
+	//duel* pduel = interpreter::get_duel_info(L);
+	duel* pduel = pcard->pduel;
 	if (pcard)
 		pduel->game_field->send_to(pcard, pduel->game_field->core.reason_effect, REASON_RULE, pduel->game_field->core.reason_player, playerid, location, sequence, position);
 	pduel->game_field->core.subunits.back().type = PROCESSOR_SENDTO_S;
