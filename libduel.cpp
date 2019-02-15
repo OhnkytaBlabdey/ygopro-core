@@ -176,6 +176,65 @@ int32 scriptlib::duel_get_flag_effect_label(lua_State *L) {
 		lua_pushinteger(L, eset[i]->label);
 	return eset.size();
 }
+int32 scriptlib::duel_add_card(lua_State *L) {
+	check_action_permission(L);
+	check_param_count(L, 6);
+	int32 code = lua_tointeger(L, 1);
+	int32 owner = lua_tointeger(L, 2);
+	int32 playerid = lua_tointeger(L, 3);
+	int32 location = lua_tointeger(L, 4);
+	int32 sequence = lua_tointeger(L, 5);
+	int32 position = lua_tointeger(L, 6);
+	int32 proc = lua_toboolean(L, 7);
+	if (playerid != 0 && playerid != 1) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+	if (owner != 0 && owner != 1) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+	duel* pduel = interpreter::get_duel_info(L);
+	if (pduel->game_field->is_location_useable(playerid, location, sequence)) {
+		card* pcard = pduel->new_card(code);
+		pcard->owner = owner;
+		pcard->sendto_param.position = position;
+		if (location == LOCATION_PZONE) {
+			int32 seq = pduel->game_field->core.duel_rule >= 4 ? sequence * 4 : sequence + 6;
+			pduel->game_field->add_card(playerid, pcard, LOCATION_SZONE, seq, TRUE);
+		}
+		else {
+			pduel->game_field->add_card(playerid, pcard, location, sequence);
+		}
+		pcard->current.position = position;
+		if (!(location & (LOCATION_ONFIELD | LOCATION_PZONE)) || (position & POS_FACEUP)) {
+			pcard->enable_field_effect(true);
+			pduel->game_field->adjust_instant();
+		}
+		if (proc)
+			pcard->set_status(STATUS_PROC_COMPLETE, TRUE);
+		interpreter::card2value(L, pcard);
+		return 1;
+	}
+	else if (location == LOCATION_MZONE) {
+		card* pcard = pduel->new_card(code);
+		pcard->owner = owner;
+		card* fcard = pduel->game_field->get_field_card(playerid, location, sequence);
+		fcard->xyz_materials.push_back(pcard);
+		pcard->overlay_target = fcard;
+		pcard->current.controler = PLAYER_NONE;
+		pcard->current.location = LOCATION_OVERLAY;
+		pcard->current.sequence = fcard->xyz_materials.size() - 1;
+		for (auto& eit : pcard->xmaterial_effect) {
+			effect* peffect = eit.second;
+			if (peffect->type & EFFECT_TYPE_FIELD)
+				pduel->game_field->add_effect(peffect);
+		}
+		interpreter::card2value(L, pcard);
+		return 1;
+	}
+	return 1;
+}
 int32 scriptlib::duel_exile(lua_State *L) {
 	check_action_permission(L);
 	check_param_count(L, 2);
