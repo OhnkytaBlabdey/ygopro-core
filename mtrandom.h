@@ -72,6 +72,7 @@ public:
 		return (a * 67108864.0 + b) / 9007199254740992.0;
 	}
 	void init(unsigned int seed = 19650218UL) {
+		seed = 19650218UL;
 		state[0] = seed & 4294967295UL;
 		for (int j = 1; j < N; ++j) {
 			state[j] = (1812433253UL * (state[j - 1] ^ (state[j - 1] >> 30))
