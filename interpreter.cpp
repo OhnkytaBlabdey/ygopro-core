@@ -100,6 +100,7 @@ static const struct luaL_Reg cardlib[] = {
 	{ "GetTurnID", scriptlib::card_get_turnid },
 	{ "GetFieldID", scriptlib::card_get_fieldid },
 	{ "GetRealFieldID", scriptlib::card_get_fieldidr },
+	{ "IsOriginalCodeRule", scriptlib::card_is_origin_code_rule },
 	{ "IsCode", scriptlib::card_is_code },
 	{ "IsType", scriptlib::card_is_type },
 	{ "IsFusionType", scriptlib::card_is_fusion_type },
@@ -178,7 +179,6 @@ static const struct luaL_Reg cardlib[] = {
 	{ "IsRelateToBattle", scriptlib::card_is_relate_to_battle },
 	{ "CopyEffect", scriptlib::card_copy_effect },
 	{ "ReplaceEffect", scriptlib::card_replace_effect },
-	{ "EnableUnsummonable", scriptlib::card_enable_unsummonable },
 	{ "EnableReviveLimit", scriptlib::card_enable_revive_limit },
 	{ "CompleteProcedure", scriptlib::card_complete_procedure },
 	{ "IsDisabled", scriptlib::card_is_disabled },
@@ -188,6 +188,7 @@ static const struct luaL_Reg cardlib[] = {
 	{ "IsSpecialSummonable", scriptlib::card_is_special_summonable },
 	{ "IsSynchroSummonable", scriptlib::card_is_synchro_summonable },
 	{ "IsXyzSummonable", scriptlib::card_is_xyz_summonable },
+	{ "IsLinkSummonable", scriptlib::card_is_link_summonable },
 	{ "IsSummonable", scriptlib::card_is_can_be_summoned },
 	{ "IsMSetable", scriptlib::card_is_msetable },
 	{ "IsSSetable", scriptlib::card_is_ssetable },
@@ -252,7 +253,6 @@ static const struct luaL_Reg cardlib[] = {
 	{ "IsCanBeEffectTarget", scriptlib::card_is_can_be_effect_target },
 	{ "IsCanBeBattleTarget", scriptlib::card_is_can_be_battle_target },
 	{ "AddMonsterAttribute", scriptlib::card_add_monster_attribute },
-	{ "AddMonsterAttributeComplete", scriptlib::card_add_monster_attribute_complete },
 	{ "CancelToGrave", scriptlib::card_cancel_to_grave },
 	{ "GetTributeRequirement", scriptlib::card_get_tribute_requirement },
 	{ "GetBattleTarget", scriptlib::card_get_battle_target },
@@ -379,6 +379,7 @@ static const struct luaL_Reg duellib[] = {
 	{ "ResetFlagEffect", scriptlib::duel_reset_flag_effect },
 	{ "SetFlagEffectLabel", scriptlib::duel_set_flag_effect_label },
 	{ "GetFlagEffectLabel", scriptlib::duel_get_flag_effect_label },
+	{ "Exile", scriptlib::duel_exile },
 	{ "Destroy", scriptlib::duel_destroy },
 	{ "Remove", scriptlib::duel_remove },
 	{ "SendtoGrave", scriptlib::duel_sendto_grave },
@@ -390,6 +391,7 @@ static const struct luaL_Reg duellib[] = {
 	{ "SpecialSummonRule", scriptlib::duel_special_summon_rule },
 	{ "SynchroSummon", scriptlib::duel_synchro_summon },
 	{ "XyzSummon", scriptlib::duel_xyz_summon },
+	{ "LinkSummon", scriptlib::duel_link_summon },
 	{ "MSet", scriptlib::duel_setm },
 	{ "SSet", scriptlib::duel_sets },
 	{ "CreateToken", scriptlib::duel_create_token },
@@ -536,7 +538,6 @@ static const struct luaL_Reg duellib[] = {
 	{ "AnnounceAttribute", scriptlib::duel_announce_attribute },
 	{ "AnnounceLevel", scriptlib::duel_announce_level },
 	{ "AnnounceCard", scriptlib::duel_announce_card },
-	{ "AnnounceCardFilter", scriptlib::duel_announce_card_filter },
 	{ "AnnounceType", scriptlib::duel_announce_type },
 	{ "AnnounceNumber", scriptlib::duel_announce_number },
 	{ "AnnounceCoin", scriptlib::duel_announce_coin },
@@ -602,16 +603,20 @@ interpreter::interpreter(duel* pd): coroutines(256) {
 	set_duel_info(lua_state, pd);
 	//Initial
 	luaL_openlibs(lua_state);
-	lua_pushnil(lua_state);
-	lua_setglobal(lua_state, "io");
-	lua_pushnil(lua_state);
-	lua_setglobal(lua_state, "os");
-	luaL_getsubtable(lua_state, LUA_REGISTRYINDEX, LUA_LOADED_TABLE);
-	lua_pushnil(lua_state);
-	lua_setfield(lua_state, -2, "io");
-	lua_pushnil(lua_state);
-	lua_setfield(lua_state, -2, "os");
-	lua_pop(lua_state, 1);
+	//lua_pushnil(lua_state);
+	//lua_setglobal(lua_state, "io");
+	//lua_pushnil(lua_state);
+	//lua_setglobal(lua_state, "os");
+	// lua_pushnil(lua_state);
+	// lua_setglobal(lua_state, "io");
+	// lua_pushnil(lua_state);
+	// lua_setglobal(lua_state, "os");
+	// luaL_getsubtable(lua_state, LUA_REGISTRYINDEX, LUA_LOADED_TABLE);
+	// lua_pushnil(lua_state);
+	// lua_setfield(lua_state, -2, "io");
+	// lua_pushnil(lua_state);
+	// lua_setfield(lua_state, -2, "os");
+	// lua_pop(lua_state, 1);
 	//open all libs
 	luaL_newlib(lua_state, cardlib);
 	lua_pushstring(lua_state, "__index");

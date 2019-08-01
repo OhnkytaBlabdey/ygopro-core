@@ -17,7 +17,7 @@ int32 field::field_used_count[32] = {0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3
 bool chain::chain_operation_sort(const chain& c1, const chain& c2) {
 	return c1.triggering_effect->id < c2.triggering_effect->id;
 }
-void chain::set_triggering_place(card* pcard) {
+void chain::set_triggering_state(card* pcard) {
 	triggering_controler = pcard->current.controler;
 	if(pcard->current.is_location(LOCATION_FZONE))
 		triggering_location = LOCATION_SZONE | LOCATION_FZONE;
@@ -27,6 +27,14 @@ void chain::set_triggering_place(card* pcard) {
 		triggering_location = pcard->current.location;
 	triggering_sequence = pcard->current.sequence;
 	triggering_position = pcard->current.position;
+	triggering_state.code = pcard->get_code();
+	triggering_state.code2 = pcard->get_another_code();
+	triggering_state.level = pcard->get_level();
+	triggering_state.rank = pcard->get_rank();
+	triggering_state.attribute = pcard->get_attribute();
+	triggering_state.race = pcard->get_race();
+	triggering_state.attack = pcard->get_attack();
+	triggering_state.defense = pcard->get_defense();
 }
 bool tevent::operator< (const tevent& v) const {
 	return std::memcmp(this, &v, sizeof(tevent)) < 0;
@@ -85,9 +93,15 @@ field::field(duel* pduel) {
 	core.check_level = 0;
 	core.limit_tuner = 0;
 	core.limit_syn = 0;
+	core.limit_syn_minc = 0;
+	core.limit_syn_maxc = 0;
 	core.limit_xyz = 0;
 	core.limit_xyz_minc = 0;
 	core.limit_xyz_maxc = 0;
+	core.limit_link = 0;
+	core.limit_link_card = 0;
+	core.limit_link_minc = 0;
+	core.limit_link_maxc = 0;
 	core.last_control_changed_id = 0;
 	core.duel_options = 0;
 	core.duel_rule = 0;
@@ -428,7 +442,6 @@ void field::swap_card(card* pcard1, card* pcard2) {
 	pduel->write_buffer32(pcard2->data.code);
 	pduel->write_buffer32(pcard1->get_info_location());
 }
-// add EFFECT_SET_CONTROL
 void field::set_control(card* pcard, uint8 playerid, uint16 reset_phase, uint8 reset_count) {
 	if((core.remove_brainwashing && pcard->is_affected_by_effect(EFFECT_REMOVE_BRAINWASHING)) || pcard->refresh_control_status() == playerid)
 		return;
@@ -677,12 +690,11 @@ int32 field::get_spsummonable_count_fromex_rule4(card* pcard, uint8 playerid, ui
 			value = eset[i]->get_value(pcard, 3);
 		}
 		if(eset[i]->get_handler_player() == playerid)
-			flag |= ~value & 0x1f;
+			flag |= ~value & 0x7f;
 		else
-			flag |= ~(value >> 16) & 0x1f;
+			flag |= ~(value >> 16) & 0x7f;
 	}
 	uint32 linked_zone = get_linked_zone(playerid) | (1u << 5) | (1u << 6);
-	flag = flag | ~zone | ~linked_zone;
 	if(player[playerid].list_mzone[5] && is_location_useable(playerid, LOCATION_MZONE, 6)
 		&& check_extra_link(playerid, pcard, 6)) {
 		flag |= 1u << 5;
@@ -697,6 +709,7 @@ int32 field::get_spsummonable_count_fromex_rule4(card* pcard, uint8 playerid, ui
 		if(!is_location_useable(playerid, LOCATION_MZONE, 6))
 			flag |= 1u << 6;
 	}
+	flag = flag | ~zone | ~linked_zone;
 	if(list)
 		*list = flag & 0x7f;
 	int32 count = 5 - field_used_count[flag & 0x1f];
@@ -919,8 +932,20 @@ void field::shuffle(uint8 playerid, uint8 location) {
 		pduel->write_buffer8(svector.size());
 		for(auto& pcard : svector)
 			pduel->write_buffer32(pcard->data.code);
-		if(location == LOCATION_HAND)
+		if(location == LOCATION_HAND) {
 			core.shuffle_hand_check[playerid] = FALSE;
+			for(auto& pcard : svector) {
+				for(auto& i : pcard->indexer) {
+					effect* peffect = i.first;
+					if(peffect->is_flag(EFFECT_FLAG_CLIENT_HINT) && !peffect->is_flag(EFFECT_FLAG_PLAYER_TARGET)) {
+						pduel->write_buffer8(MSG_CARD_HINT);
+						pduel->write_buffer32(pcard->get_info_location());
+						pduel->write_buffer8(CHINT_DESC_ADD);
+						pduel->write_buffer32(peffect->description);
+					}
+				}
+			}
+		}
 	} else {
 		pduel->write_buffer8(MSG_SHUFFLE_DECK);
 		pduel->write_buffer8(playerid);
@@ -1222,8 +1247,11 @@ void field::remove_oath_effect(effect* reason_effect) {
 void field::reset_phase(uint32 phase) {
 	for(auto eit = effects.pheff.begin(); eit != effects.pheff.end();) {
 		auto rm = eit++;
-		if((*rm)->code == EFFECT_SET_CONTROL)
-			continue;
+		// work around: skip turn still raise reset_phase(PHASE_END)
+		// without this taking control only for one turn will be returned when skipping turn
+		// RESET_TURN_END should be introduced
+		//if((*rm)->code == EFFECT_SET_CONTROL)
+		//	continue;
 		if((*rm)->reset(phase, RESET_PHASE)) {
 			if((*rm)->is_flag(EFFECT_FLAG_FIELD_ONLY))
 				remove_effect((*rm));
@@ -1858,7 +1886,7 @@ int32 field::get_overlay_count(uint8 self, uint8 s, uint8 o) {
 	}
 	return count;
 }
-// put all cards in the target of peffect into effects.disable_check_set, effects.disable_check_list
+// put all cards in the target of peffect into effects.disable_check_list
 void field::update_disable_check_list(effect* peffect) {
 	card_set cset;
 	filter_affected_cards(peffect, &cset);
@@ -1866,9 +1894,9 @@ void field::update_disable_check_list(effect* peffect) {
 		add_to_disable_check_list(pcard);
 }
 void field::add_to_disable_check_list(card* pcard) {
-	if (effects.disable_check_set.find(pcard) != effects.disable_check_set.end())
+	auto result=effects.disable_check_set.insert(pcard);
+	if(!result.second)
 		return;
-	effects.disable_check_set.insert(pcard);
 	effects.disable_check_list.push_back(pcard);
 }
 void field::adjust_disable_check_list() {
@@ -2300,7 +2328,7 @@ int32 field::get_attack_target(card* pcard, card_vector* v, uint8 chain_attack, 
 					continue;
 				if(atype >= 2 && atarget->is_affected_by_effect(EFFECT_IGNORE_BATTLE_TARGET))
 					continue;
-				if(select_target && atype == 4) {
+				if(select_target && (atype == 2 || atype == 4)) {
 					if(atarget->is_affected_by_effect(EFFECT_CANNOT_BE_BATTLE_TARGET, pcard))
 						continue;
 					if(pcard->is_affected_by_effect(EFFECT_CANNOT_SELECT_BATTLE_TARGET, atarget))
@@ -2321,7 +2349,7 @@ int32 field::get_attack_target(card* pcard, card_vector* v, uint8 chain_attack, 
 		mcount++;
 		if(chain_attack && core.chain_attack_target && atarget != core.chain_attack_target)
 			continue;
-		if(select_target && atype == 4) {
+		if(select_target && (atype == 2 || atype == 4)) {
 			if(atarget->is_affected_by_effect(EFFECT_CANNOT_BE_BATTLE_TARGET, pcard))
 				continue;
 			if(pcard->is_affected_by_effect(EFFECT_CANNOT_SELECT_BATTLE_TARGET, atarget))
@@ -2381,7 +2409,7 @@ int32 field::check_synchro_material(card* pcard, int32 findex1, int32 findex2, i
 	return FALSE;
 }
 int32 field::check_tuner_material(card* pcard, card* tuner, int32 findex1, int32 findex2, int32 min, int32 max, card* smat, group* mg) {
-	if(!tuner || !tuner->is_position(POS_FACEUP) || !(tuner->get_synchro_type() & TYPE_TUNER) || !tuner->is_can_be_synchro_material(pcard))
+	if(!tuner || (tuner->current.location == LOCATION_MZONE && !tuner->is_position(POS_FACEUP)) || !(tuner->get_synchro_type() & TYPE_TUNER) || !tuner->is_can_be_synchro_material(pcard))
 		return FALSE;
 	effect* pcheck = tuner->is_affected_by_effect(EFFECT_SYNCHRO_CHECK);
 	if(pcheck)
@@ -2853,9 +2881,9 @@ int32 field::is_player_can_discard_hand(uint8 playerid, card * pcard, effect * p
 	}
 	return TRUE;
 }
-int32 field::is_player_can_summon(uint8 playerid) {
+int32 field::is_player_can_action(uint8 playerid, uint32 actionlimit) {
 	effect_set eset;
-	filter_player_effect(playerid, EFFECT_CANNOT_SUMMON, &eset);
+	filter_player_effect(playerid, actionlimit, &eset);
 	for(int32 i = 0; i < eset.size(); ++i) {
 		if(!eset[i]->target)
 			return FALSE;
@@ -3082,7 +3110,8 @@ int32 field::is_player_can_send_to_hand(uint8 playerid, card * pcard) {
 		pduel->lua->add_param(eset[i], PARAM_TYPE_EFFECT);
 		pduel->lua->add_param(pcard, PARAM_TYPE_CARD);
 		pduel->lua->add_param(playerid, PARAM_TYPE_INT);
-		if (pduel->lua->check_condition(eset[i]->target, 3))
+		pduel->lua->add_param(core.reason_effect, PARAM_TYPE_EFFECT);
+		if (pduel->lua->check_condition(eset[i]->target, 4))
 			return FALSE;
 	}
 	if(pcard->is_extra_deck_monster() && !is_player_can_send_to_deck(playerid, pcard))
@@ -3126,7 +3155,7 @@ int32 field::is_chain_negatable(uint8 chaincount) {
 		peffect = core.current_chain.back().triggering_effect;
 	else
 		peffect = core.current_chain[chaincount - 1].triggering_effect;
-	if(peffect->is_flag(EFFECT_FLAG_CANNOT_DISABLE))
+	if(peffect->is_flag(EFFECT_FLAG_CANNOT_INACTIVATE))
 		return FALSE;
 	filter_field_effect(EFFECT_CANNOT_INACTIVATE, &eset);
 	for(int32 i = 0; i < eset.size(); ++i) {
@@ -3342,6 +3371,8 @@ int32 field::check_trigger_effect(const chain& ch) const {
 		return FALSE;
 	if(peffect->code == EVENT_FLIP && infos.phase == PHASE_DAMAGE)
 		return TRUE;
+	if((phandler->current.location & LOCATION_DECK) && !(ch.flag & CHAIN_DECK_EFFECT))
+		return FALSE;
 	if((ch.triggering_location & (LOCATION_DECK | LOCATION_HAND | LOCATION_EXTRA))
 		&& (ch.triggering_position & POS_FACEDOWN))
 		return TRUE;
