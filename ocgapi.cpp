@@ -122,7 +122,7 @@ extern "C" DECL_DLLEXPORT void set_player_info(ptr pduel, int32 playerid, int32 
 extern "C" DECL_DLLEXPORT void get_log_message(ptr pduel, byte* buf) {
 	strcpy((char*)buf, ((duel*)pduel)->strbuffer);
 }
-extern "C" DECL_DLLEXPORT int32 get_message(ptr pduel, byte* buf) {
+extern "C" DECL_DLLEXPORT int32 get_message(ptr pduel, byte* buf) { // from internal buffer to external buf
 	int32 len = ((duel*)pduel)->read_buffer(buf);
 	((duel*)pduel)->clear_buffer();
 	return len;
@@ -153,7 +153,7 @@ extern "C" DECL_DLLEXPORT void new_card(ptr pduel, uint32 code, uint8 owner, uin
 }
 extern "C" DECL_DLLEXPORT void new_tag_card(ptr pduel, uint32 code, uint8 owner, uint8 location) {
 	duel* ptduel = (duel*)pduel;
-	if(owner > 1 || !(location & 0x41))
+	if(owner > 1 || !(location & 0x41)) // LOCATION_DECK & LOCATION_EXTRA
 		return;
 	card* pcard = ptduel->new_card(code);
 	switch(location) {
