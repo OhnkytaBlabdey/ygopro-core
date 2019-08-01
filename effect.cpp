@@ -41,7 +41,7 @@ effect::effect(duel* pd) {
 	reset_flag = 0;
 	count_code = 0;
 	category = 0;
-	label = 0;
+	label.reserve(4);
 	label_object = 0;
 	hint_timing[0] = 0;
 	hint_timing[1] = 0;
@@ -168,7 +168,6 @@ int32 effect::check_count_limit(uint8 playerid) {
 }
 // check if an EFFECT_TYPE_ACTIONS effect can be activated
 // for triggering effects, it checks EFFECT_FLAG_DAMAGE_STEP, EFFECT_FLAG_SET_AVAILABLE
-// for continuous effect, it checks EFFECT_FLAG_AVAILABLE_BD
 int32 effect::is_activateable(uint8 playerid, const tevent& e, int32 neglect_cond, int32 neglect_cost, int32 neglect_target, int32 neglect_loc, int32 neglect_faceup) {
 	if(!(type & EFFECT_TYPE_ACTIONS))
 		return FALSE;
@@ -546,7 +545,6 @@ int32 effect::is_chainable(uint8 tp) {
 	return TRUE;
 }
 //return: this can be reset by reset_level or not
-//RESET_CODE can only reset single effects without EFFECT_FLAG_SINGLE_RANGE
 //RESET_DISABLE is valid only when owner == handler
 int32 effect::reset(uint32 reset_level, uint32 reset_type) {
 	switch (reset_type) {
@@ -578,8 +576,7 @@ int32 effect::reset(uint32 reset_level, uint32 reset_type) {
 		break;
 	}
 	case RESET_CODE: {
-		return (code == reset_level) && (type & EFFECT_TYPE_SINGLE) && !(type & EFFECT_TYPE_ACTIONS) 
-			&& !is_flag(EFFECT_FLAG_SINGLE_RANGE);
+		return (code == reset_level) && (type & EFFECT_TYPE_SINGLE) && !(type & EFFECT_TYPE_ACTIONS);
 		break;
 	}
 	case RESET_COPY: {
